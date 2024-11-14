@@ -6,23 +6,43 @@ import { NoticeModal } from "../NoticeModal/NoticeModal";
 import { Portal } from "../../../common/potal/Portal";
 import { useRecoilState } from "recoil";
 import { modalState } from "../../../../stores/modalState";
+import { INotice, INoticeListResponse } from "../../../../models/interface/INotice";
+import { postNoticeApi } from "../../../../api/postNoticeApi";
+import { Notice } from "../../../../api/api";
 
 //전달받은 데이터들 각각에게 데이터 타입 지정해주는 인터페이스
-interface INotice {
-    // 이는 배열 안의 객체들의 타입을 정해준 것이기 때문에
-    noticeIdx: number;
-    title: string;
-    content: string;
-    author: string;
-    createdDate: string;
-    // 여기부터는 지워도 되긴 함
-    updatedDate: string | null; // string이되 null이 가능하다
-    fileName: string | null;
-    phsycalPath: string | null;
-    logicalPath: string | null;
-    fileSize: number;
-    fileExt: string | null;
-}
+// interface INotice {
+//     // 이는 배열 안의 객체들의 타입을 정해준 것이기 때문에
+//     noticeIdx: number;
+//     title: string;
+//     content: string;
+//     author: string;
+//     createdDate: string;
+//     // 여기부터는 지워도 되긴 함
+//     updatedDate: string | null; // string이되 null이 가능하다
+//     fileName: string | null;
+//     phsycalPath: string | null;
+//     logicalPath: string | null;
+//     fileSize: number;
+//     fileExt: string | null;
+// }
+
+// //위의 인터페이스를 export로 전환
+// export interface INotice {
+//     // 이는 배열 안의 객체들의 타입을 정해준 것이기 때문에
+//     noticeIdx: number;
+//     title: string;
+//     content: string;
+//     author: string;
+//     createdDate: string;
+//     // 여기부터는 지워도 되긴 함
+//     updatedDate: string | null; // string이되 null이 가능하다
+//     fileName: string | null;
+//     phsycalPath: string | null;
+//     logicalPath: string | null;
+//     fileSize: number;
+//     fileExt: string | null;
+// }
 
 export const NoticeMain = () => {
     // 그냥 search 라고 변수에 담아주기만 하면 내용이 너무 많으므로 {search} 라는 형태로
@@ -40,21 +60,28 @@ export const NoticeMain = () => {
 
     //recoil에 저장된 state
     const [modal, setModal] = useRecoilState<boolean>(modalState);
+    const [index, setIndex] = useState<number>();
 
     useEffect(() => {
         searchNoticeList();
     }, [search]);
 
-    const searchNoticeList = (currentPage?: number) => {
+    const searchNoticeList = async (currentPage?: number) => {
         currentPage = currentPage || 1;
         const searchParam = new URLSearchParams(search);
         searchParam.append("currentPage", currentPage.toString());
         searchParam.append("pageSize", "5"); // 여기까지 하면 데이터는 json 형식으로 불러온다
 
-        axios.post("/board/noticeListJson.do", searchParam).then((res) => {
-            setNoticeList(res.data.notice);
-            setListCount(res.data.noticeCnt);
-        });
+        const searchList = await postNoticeApi<INoticeListResponse>(Notice.getList, searchParam);
+        if (searchList) {
+            setNoticeList(searchList.notice);
+            setListCount(searchList.noticeCnt);
+        }
+        //api 형식 따로 관리하기 전
+        // axios.post("/board/noticeListJson.do", searchParam).then((res) => {
+        //     setNoticeList(res.data.notice);
+        //     setListCount(res.data.noticeCnt);
+        // });
     };
 
     //modalState.ts를 활용하려면 이건 주석처리
@@ -62,8 +89,22 @@ export const NoticeMain = () => {
     //     setModalState(!modalState);
     // };
 
-    const handlerModal = () => {
+    //202411141107 전
+    // const handlerModal = () => {
+    //     setModal(!modal);
+    // };
+
+    // 아래에서 전달받은 notice.noticeIdx를 index란 이름으로 받음
+    //                여기서 이 index는 아무렇게나 명명해도 된다
+    // const [index, setIndex] = useState<number>(); 의 index와는 다름
+    const handlerModal = (index: number) => {
         setModal(!modal);
+        setIndex(index);
+    };
+
+    const onPostSuccess = () => {
+        setModal(!modal);
+        searchNoticeList();
     };
 
     // 이제 데이터가 없으면 '데이터가 없습니다'가 뜨고
@@ -89,7 +130,7 @@ export const NoticeMain = () => {
 
                                 //modalState.ts 만들기 전
                                 //  <tr key={notice.noticeIdx} onClick={handlerModal}>
-                                <tr key={notice.noticeIdx} onClick={handlerModal}>
+                                <tr key={notice.noticeIdx} onClick={() => handlerModal(notice.noticeIdx)}>
                                     <StyledTd>{notice.noticeIdx}</StyledTd>
                                     <StyledTd>{notice.title}</StyledTd>
                                     <StyledTd>{notice.author}</StyledTd>
@@ -106,7 +147,7 @@ export const NoticeMain = () => {
             </StyledTable>
             {modal && (
                 <Portal>
-                    <NoticeModal />
+                    <NoticeModal onSuccess={onPostSuccess} noticeSeq={index} setNoticeSeq={setIndex} />
                 </Portal>
             )}
         </>
