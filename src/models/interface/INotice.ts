@@ -27,6 +27,7 @@ export interface INoticeDetail extends INotice {
 // 말하자면 { detail : {INoticeDetail이나 INotice 같은 거} } 와 같아야 한다
 // extend로 포함하지 못하는 건 extend는 그냥 같은 요소로 전부 붙여버리는 거라서
 export interface IDetailResponse {
+    //detail이란 친구 안에 INoticeDetail 들어가 있음
     detail: INoticeDetail;
 }
 

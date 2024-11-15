@@ -1,7 +1,7 @@
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { StyledTable, StyledTd, StyledTh } from "../../../common/styled/StyledTable";
 import axios from "axios";
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { NoticeModal } from "../NoticeModal/NoticeModal";
 import { Portal } from "../../../common/potal/Portal";
 import { useRecoilState } from "recoil";
@@ -9,6 +9,8 @@ import { modalState } from "../../../../stores/modalState";
 import { INotice, INoticeListResponse } from "../../../../models/interface/INotice";
 import { postNoticeApi } from "../../../../api/postNoticeApi";
 import { Notice } from "../../../../api/api";
+import { PageNavigate } from "../../../common/pageNavigation/PageNavigate";
+import { NoticeContext } from "../../../../api/provider/NoticeProvider";
 
 //전달받은 데이터들 각각에게 데이터 타입 지정해주는 인터페이스
 // interface INotice {
@@ -62,21 +64,57 @@ export const NoticeMain = () => {
     const [modal, setModal] = useRecoilState<boolean>(modalState);
     const [index, setIndex] = useState<number>();
 
+    //페이지네이션
+    const [cPage, setCPage] = useState<number>();
+
+    //Provider 활용
+    const { searchKeyWord } = useContext(NoticeContext);
+
+    //Router 사용
+    const navigate = useNavigate();
+
+    // url에 쿼리가 들어가서 url이 바뀔 때 사용
+    //  useEffect(() => {
+    //      searchNoticeList();
+    //  }, [search]);
+
+    //NoticeSearch에서 변경된 searchKeyWord 값을 NoticeMain에서 받아서
     useEffect(() => {
         searchNoticeList();
-    }, [search]);
+    }, [searchKeyWord]); //searchKeyWord 값이 변경될 떄  searchNoticeList(); 작동
+
+    // useEffect(() => {
+    //     console.log(searchKeyWord);
+    // }, [searchKeyWord]);
 
     const searchNoticeList = async (currentPage?: number) => {
         currentPage = currentPage || 1;
-        const searchParam = new URLSearchParams(search);
-        searchParam.append("currentPage", currentPage.toString());
-        searchParam.append("pageSize", "5"); // 여기까지 하면 데이터는 json 형식으로 불러온다
+        //    const searchParam = new URLSearchParams(search);
+        //    searchParam.append("currentPage", currentPage.toString());
+        //    searchParam.append("pageSize", "5");
+        const searchParam = { ...searchKeyWord, currentPage: currentPage.toString(), pageSize: "5" };
 
-        const searchList = await postNoticeApi<INoticeListResponse>(Notice.getList, searchParam);
+        const searchList = await postNoticeApi<INoticeListResponse>(Notice.getListBody, searchParam);
         if (searchList) {
             setNoticeList(searchList.notice);
             setListCount(searchList.noticeCnt);
+
+            setCPage(currentPage);
         }
+
+        // const searchNoticeList = async (currentPage?: number) => {
+        //     currentPage = currentPage || 1;
+        //     const searchParam = new URLSearchParams(search);
+        //     searchParam.append("currentPage", currentPage.toString());
+        //     searchParam.append("pageSize", "5"); // 여기까지 하면 데이터는 json 형식으로 불러온다
+
+        //     const searchList = await postNoticeApi<INoticeListResponse>(Notice.getList, searchParam);
+        //     if (searchList) {
+        //         setNoticeList(searchList.notice);
+        //         setListCount(searchList.noticeCnt);
+
+        //         setCPage(currentPage);
+        //     }
         //api 형식 따로 관리하기 전
         // axios.post("/board/noticeListJson.do", searchParam).then((res) => {
         //     setNoticeList(res.data.notice);
@@ -107,11 +145,12 @@ export const NoticeMain = () => {
         searchNoticeList();
     };
 
+
     // 이제 데이터가 없으면 '데이터가 없습니다'가 뜨고
     // 있으면 출력되게 해야 한다
     return (
         <>
-            총 갯수 : {listCount} 현재 페이지 : 0
+            총 갯수 : {listCount} 현재 페이지 : {cPage}
             <StyledTable>
                 <thead>
                     <tr>
@@ -130,7 +169,24 @@ export const NoticeMain = () => {
 
                                 //modalState.ts 만들기 전
                                 //  <tr key={notice.noticeIdx} onClick={handlerModal}>
-                                <tr key={notice.noticeIdx} onClick={() => handlerModal(notice.noticeIdx)}>
+
+                                //noticeRouter 만들기 전
+                                // <tr key={notice.noticeIdx} onClick={() => handlerModal(notice.noticeIdx)}>
+
+                                //1115 오후 ~4시~
+                                //navigate(notice.noticeIdx); 처럼 안의 값이 number일 경우엔 인식을 못함
+                                //url은 string 타입이기 때문에 안에 들어가는 인자도 string밖에 못 넣기 때문에
+                                //형변환을 해준다
+                                // navigate(notice.noticeIdx.toString());
+
+                                // 혹은 `${값}` 과 같은 형태로, 유동적으로 값이 들어갈 수 있게 해준다
+                                // url에 다른 데이터 포함해서 보내주고 싶으면 state 사용하면 됨
+                                <tr
+                                    key={notice.noticeIdx}
+                                    onClick={() => {
+                                        navigate(`${notice.noticeIdx}`, { state: { title: notice.title } });
+                                    }}
+                                >
                                     <StyledTd>{notice.noticeIdx}</StyledTd>
                                     <StyledTd>{notice.title}</StyledTd>
                                     <StyledTd>{notice.author}</StyledTd>
@@ -145,6 +201,13 @@ export const NoticeMain = () => {
                     )}
                 </tbody>
             </StyledTable>
+            {/* PagiNavigate.tsx 보면 props가 totalItemsCount, onChange, activePage, itemsCountPerPage 있으므로 여기에도 들어가야 함 */}
+            <PageNavigate
+                totalItemsCount={listCount}
+                onChange={searchNoticeList}
+                activePage={cPage}
+                itemsCountPerPage={5}
+            ></PageNavigate>
             {modal && (
                 <Portal>
                     <NoticeModal onSuccess={onPostSuccess} noticeSeq={index} setNoticeSeq={setIndex} />
